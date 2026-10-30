@@ -105,10 +105,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "${BRANCH}"
 
-          sed -i "s/default: '[0-9][^']*'/default: '${VERSION}'/" \
-            .github/workflows/build-opensearch-fips.yml
+          sed -i "s/VERSION:-[0-9][^}]*/VERSION:-${VERSION}/" \
+            build-opensearch-fips.sh
 
-          git add .github/workflows/build-opensearch-fips.yml
+          git add build-opensearch-fips.sh
           git commit -m "chore: bump default version to ${VERSION}"
           git push origin "${BRANCH}"
 
