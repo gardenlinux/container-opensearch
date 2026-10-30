@@ -20,6 +20,8 @@ on:
 
 permissions:
   actions: write
+  contents: write
+  pull-requests: write
 
 env:
   UPSTREAM_REPO: ${{ inputs.upstream_repo || 'opensearch-project/OpenSearch' }}
@@ -27,8 +29,10 @@ env:
   STABLE_ONLY: ${{ inputs.stable_only || 'yes' }}
 
 jobs:
-  check-and-trigger:
+  check:
     runs-on: ubuntu-24.04
+    outputs:
+      new_version: ${{ steps.compare.outputs.new_version }}
     steps:
       - name: Fetch latest upstream release
         id: upstream
@@ -53,9 +57,8 @@ jobs:
           last=$(gh api repos/${{ github.repository }}/tags --jq '.[0].name | ltrimstr("v")')
           echo "version=${last}" >> "$GITHUB_OUTPUT"
 
-      - name: Compare and trigger build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compare versions
+        id: compare
         run: |
           latest="${{ steps.upstream.outputs.version }}"
           last="${{ steps.last_built.outputs.version }}"
@@ -69,11 +72,50 @@ jobs:
 
           if [ "${latest}" = "${last}" ]; then
             echo "Already up-to-date (${latest}); nothing to do."
-            exit 0
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+          else
+            echo "New release detected: ${latest} (previously ${last})"
+            echo "new_version=${latest}" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "New release detected: ${latest} (previously ${last})"
+  build:
+    needs: check
+    if: needs.check.outputs.new_version != ''
+    uses: ./.github/workflows/build-opensearch-fips.yml
+    with:
+      version: ${{ needs.check.outputs.new_version }}
+    permissions:
+      packages: write
 
-          gh workflow run "${BUILD_WORKFLOW}" \
+  open-pr:
+    runs-on: ubuntu-24.04
+    needs: [check, build]
+    if: needs.check.outputs.new_version != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.check.outputs.new_version }}
+        run: |
+          BRANCH="release/v${VERSION}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH}"
+
+          sed -i "s/default: '[0-9][^']*'/default: '${VERSION}'/" \
+            .github/workflows/build-opensearch-fips.yml
+
+          git add .github/workflows/build-opensearch-fips.yml
+          git commit -m "chore: bump default version to ${VERSION}"
+          git push origin "${BRANCH}"
+
+          gh pr create \
             --repo "${{ github.repository }}" \
-            --field "version=${latest}"
+            --base main \
+            --head "${BRANCH}" \
+            --title "Release v${VERSION}" \
+            --body "Automated release PR for upstream version **${VERSION}**.
+
+          Merge this PR to record the new version as the repository default."
