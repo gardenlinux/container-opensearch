@@ -1,0 +1,79 @@
+name: Check upstream OpenSearch release
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_repo:
+        description: 'Upstream GitHub repo (owner/name)'
+        required: false
+        default: 'opensearch-project/OpenSearch'
+      build_workflow:
+        description: 'Workflow file to trigger on new release'
+        required: false
+        default: 'build-opensearch-fips.yml'
+      stable_only:
+        description: 'Only consider stable releases? Set to "no" to include dev/rc tags'
+        required: false
+        default: 'yes'
+
+permissions:
+  actions: write
+
+env:
+  UPSTREAM_REPO: ${{ inputs.upstream_repo || 'opensearch-project/OpenSearch' }}
+  BUILD_WORKFLOW: ${{ inputs.build_workflow || 'build-opensearch-fips.yml' }}
+  STABLE_ONLY: ${{ inputs.stable_only || 'yes' }}
+
+jobs:
+  check-and-trigger:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch latest upstream release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest=$(gh release view --repo "${UPSTREAM_REPO}" --json tagName -q '.tagName | ltrimstr("v")' 2>/dev/null || true)
+          if [ -z "${latest}" ]; then
+            if [ "${STABLE_ONLY}" = "yes" ]; then
+              latest=$(gh api repos/${UPSTREAM_REPO}/tags --jq '[.[].name | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | .[0]')
+            else
+              latest=$(gh api repos/${UPSTREAM_REPO}/tags --jq '.[0].name | ltrimstr("v")')
+            fi
+          fi
+          echo "version=${latest}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch last built version
+        id: last_built
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          last=$(gh api repos/${{ github.repository }}/tags --jq '.[0].name | ltrimstr("v")')
+          echo "version=${last}" >> "$GITHUB_OUTPUT"
+
+      - name: Compare and trigger build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest="${{ steps.upstream.outputs.version }}"
+          last="${{ steps.last_built.outputs.version }}"
+          echo "Upstream latest : ${latest}"
+          echo "Last built      : ${last}"
+
+          if [ -z "${latest}" ]; then
+            echo "Could not determine upstream version; aborting." >&2
+            exit 1
+          fi
+
+          if [ "${latest}" = "${last}" ]; then
+            echo "Already up-to-date (${latest}); nothing to do."
+            exit 0
+          fi
+
+          echo "New release detected: ${latest} (previously ${last})"
+
+          gh workflow run "${BUILD_WORKFLOW}" \
+            --repo "${{ github.repository }}" \
+            --field "version=${latest}"
