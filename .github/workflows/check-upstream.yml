@@ -22,7 +22,7 @@ permissions:
   actions: write
   contents: write
   pull-requests: write
-  workflows: write
+
 
 env:
   UPSTREAM_REPO: ${{ inputs.upstream_repo || 'opensearch-project/OpenSearch' }}
