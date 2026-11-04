@@ -239,8 +239,9 @@ install_syft() {
 
 # Phase 2: scan the final image for OS packages + language packages.
 # Catalogers are driven by syft.yaml (catalogers.default).
-SBOM_TMP="${WORKDIR}/${IMAGE_NAME}-${VERSION}-${ARCH}.raw.cdx.json"
-SBOM_OUT="${WORKDIR}/${IMAGE_NAME}-${VERSION}-${ARCH}.cdx.json"
+IMAGE_NAME_BASE=$(basename "${IMAGE_NAME}")
+SBOM_TMP="${WORKDIR}/${IMAGE_NAME_BASE}-${VERSION}-${ARCH}.raw.cdx.json"
+SBOM_OUT="${WORKDIR}/${IMAGE_NAME_BASE}-${VERSION}-${ARCH}.cdx.json"
 
 "${SYFT_BIN}" "${IMAGE_NAME}:${VERSION}-${ARCH}" \
     --output "cyclonedx-json=${SBOM_TMP}"
