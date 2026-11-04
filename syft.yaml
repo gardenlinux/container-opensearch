@@ -1,0 +1,12 @@
+# syft configuration — catalogers for image scanning
+catalogers:
+  default:
+    - java-archive-cataloger
+    - dpkg-db-cataloger
+
+output:
+  - cyclonedx-json
+
+package:
+  search-unindexed-archives: false
+  search-indexed-archives: false

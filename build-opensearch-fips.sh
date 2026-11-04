@@ -215,3 +215,54 @@ docker buildx build \
 # --- report ------------------------------------------------------------------
 
 echo "Built: ${IMAGE_NAME}:${VERSION}-${ARCH}"
+
+# --- SBOM --------------------------------------------------------------------
+# Syft version is pinned; update SYFT_VERSION to pick up a newer release.
+SYFT_VERSION="${SYFT_VERSION:-1.56.0}"
+SYFT_BIN="${WORKDIR}/syft"
+
+install_syft() {
+    local arch_syft
+    arch_syft=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+    local tarball="syft_${SYFT_VERSION}_linux_${arch_syft}.tar.gz"
+    local checksum_file="syft_${SYFT_VERSION}_checksums.txt"
+    local base_url="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
+
+    curl -sSfL "${base_url}/${tarball}"       -o "/tmp/${tarball}"
+    curl -sSfL "${base_url}/${checksum_file}" -o "/tmp/${checksum_file}"
+    grep "${tarball}" "/tmp/${checksum_file}" | (cd /tmp && sha256sum -c)
+    tar -xzf "/tmp/${tarball}" -C "${WORKDIR}" syft
+    chmod +x "${SYFT_BIN}"
+}
+
+{ [ -x "${SYFT_BIN}" ] && "${SYFT_BIN}" version 2>/dev/null | grep -q "${SYFT_VERSION}"; } || install_syft
+
+# Phase 2: scan the final image for OS packages + language packages.
+# Catalogers are driven by syft.yaml (catalogers.default).
+SBOM_TMP="${WORKDIR}/${IMAGE_NAME}-${VERSION}-${ARCH}.raw.cdx.json"
+SBOM_OUT="${WORKDIR}/${IMAGE_NAME}-${VERSION}-${ARCH}.cdx.json"
+
+"${SYFT_BIN}" "${IMAGE_NAME}:${VERSION}-${ARCH}" \
+    --output "cyclonedx-json=${SBOM_TMP}"
+
+jq \
+    --arg name "opensearch" \
+    --arg version "${VERSION}" \
+    --arg purl "pkg:oci/gl-fips-opensearch@${VERSION}?arch=${ARCH}" \
+    --arg revision "${UPSTREAM_GIT_SHA}" \
+    --arg arch "${ARCH}" \
+    '.metadata.lifecycles = [{"phase": "post-build"}] |
+     .metadata.component = {
+       "type": "application",
+       "name": $name,
+       "version": $version,
+       "purl": $purl,
+       "properties": [
+         {"name": "org.opencontainers.image.revision", "value": $revision},
+         {"name": "arch", "value": $arch}
+       ]
+     }' \
+    "${SBOM_TMP}" > "${SBOM_OUT}"
+
+rm "${SBOM_TMP}"
+echo "SBOM: ${SBOM_OUT}"
