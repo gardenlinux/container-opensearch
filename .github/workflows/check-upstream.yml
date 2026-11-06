@@ -87,6 +87,7 @@ jobs:
       version: ${{ needs.check.outputs.new_version }}
     permissions:
       packages: write
+      contents: write
 
   open-pr:
     runs-on: ubuntu-24.04
@@ -103,20 +104,31 @@ jobs:
           BRANCH="release/v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${BRANCH}"
+
+          if git ls-remote --exit-code origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
+            git fetch origin "${BRANCH}"
+            git checkout -b "${BRANCH}" "origin/${BRANCH}"
+          else
+            git checkout -b "${BRANCH}"
+          fi
 
           sed -i "s/VERSION:-[0-9][^}]*/VERSION:-${VERSION}/" \
             build-opensearch-fips.sh
 
           git add build-opensearch-fips.sh
-          git commit -m "chore: bump default version to ${VERSION}"
-          git push origin "${BRANCH}"
+          git diff --cached --quiet && echo "Nothing to commit" || \
+            git commit -m "chore: bump default version to ${VERSION}"
+          git push --force-with-lease origin "${BRANCH}"
 
-          gh pr create \
-            --repo "${{ github.repository }}" \
-            --base main \
-            --head "${BRANCH}" \
-            --title "Release v${VERSION}" \
-            --body "Automated release PR for upstream version **${VERSION}**.
+          if ! gh pr view "${BRANCH}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh pr create \
+              --repo "${{ github.repository }}" \
+              --base main \
+              --head "${BRANCH}" \
+              --title "Release v${VERSION}" \
+              --body "Automated release PR for upstream version **${VERSION}**.
 
           Merge this PR to record the new version as the repository default."
+          else
+            echo "PR for ${BRANCH} already exists; skipping gh pr create."
+          fi
