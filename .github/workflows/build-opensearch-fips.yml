@@ -1,6 +1,8 @@
 name: Build FIPS OpenSearch image
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_call:
     inputs:
@@ -120,7 +122,7 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     needs: [build-amd64, build-arm64, push-manifest]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     steps:
