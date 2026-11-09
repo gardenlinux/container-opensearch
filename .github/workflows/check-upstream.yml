@@ -120,7 +120,9 @@ jobs:
             git commit -m "chore: bump default version to ${VERSION}"
           git push --force-with-lease origin "${BRANCH}"
 
-          if ! gh pr view "${BRANCH}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          OPEN_PR=$(gh pr list --repo "${{ github.repository }}" \
+            --head "${BRANCH}" --state open --json number --jq '.[0].number')
+          if [ -z "${OPEN_PR}" ]; then
             gh pr create \
               --repo "${{ github.repository }}" \
               --base main \
@@ -130,5 +132,5 @@ jobs:
 
           Merge this PR to record the new version as the repository default."
           else
-            echo "PR for ${BRANCH} already exists; skipping gh pr create."
+            echo "Open PR #${OPEN_PR} for ${BRANCH} already exists; skipping gh pr create."
           fi
