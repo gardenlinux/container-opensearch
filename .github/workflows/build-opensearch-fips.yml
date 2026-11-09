@@ -18,6 +18,7 @@ on:
         default: ''
 permissions:
   packages: write
+  contents: write
 
 jobs:
   build-amd64:
