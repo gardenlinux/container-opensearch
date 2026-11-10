@@ -102,6 +102,8 @@ jobs:
   push-manifest:
     runs-on: ubuntu-24.04
     needs: [build-amd64, build-arm64]
+    outputs:
+      image_digest: ${{ steps.manifest.outputs.image_digest }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -110,6 +112,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create and push manifest list
+        id: manifest
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
         run: |
@@ -119,6 +122,10 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION}-amd64 \
             ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION}-arm64
           docker manifest push ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION}
+          DIGEST=$(docker manifest inspect \
+            ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION} \
+            | jq -r '[.[].Descriptor.digest][0]')
+          echo "image_digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
   release:
     runs-on: ubuntu-24.04
@@ -138,6 +145,28 @@ jobs:
         with:
           name: sbom-arm64
           path: sbom/
+      - name: Download build logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs \
+            > /tmp/build-logs-${{ github.run_id }}.zip
+
+      - name: Generate SLSA provenance
+        env:
+          VERSION: ${{ inputs.version || github.event.inputs.version }}
+          IMAGE_DIGEST: ${{ needs.push-manifest.outputs.image_digest }}
+        run: |
+          VERSION="${VERSION:-$(grep -m1 'VERSION:-' build-opensearch-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')}"
+          python3 generate-provenance.py \
+            --app opensearch \
+            --version "${VERSION}" \
+            --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION}" \
+            --image-digest "${{ needs.push-manifest.outputs.image_digest }}" \
+            --sbom-dir sbom/ \
+            --log-zip /tmp/build-logs-${{ github.run_id }}.zip \
+            --output /tmp/provenance.json
+
       - name: Publish GitHub Release with SBOMs
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
@@ -162,4 +191,6 @@ jobs:
           gh release upload "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --clobber \
-            sbom/*.cdx.json
+            sbom/*.cdx.json \
+            /tmp/provenance.json \
+            /tmp/build-logs-${{ github.run_id }}.zip
