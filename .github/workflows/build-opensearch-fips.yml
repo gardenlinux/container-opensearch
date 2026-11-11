@@ -124,7 +124,7 @@ jobs:
           docker manifest push ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION}
           DIGEST=$(docker manifest inspect \
             ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION} \
-            | jq -r '[.[].Descriptor.digest][0]')
+            | jq -r '.manifests[0].digest')
           echo "image_digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
   release:
