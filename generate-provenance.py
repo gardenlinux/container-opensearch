@@ -8,7 +8,7 @@ Usage:
     --image-digest sha256:... \       # repeat for multi-image
     --image-name ghcr.io/... \        # repeat, paired with --image-digest
     --sbom-dir sbom/ \
-    --log-zip /tmp/build-logs-RUN_ID.zip \
+    --log-zip /tmp/build-logs-RUN_ID.zip \   # optional; skipped if file absent
     --output /tmp/provenance.json
 
 Environment variables consumed (all set by GitHub Actions):
@@ -31,7 +31,7 @@ def main():
     ap.add_argument("--image-name", action="append", dest="image_names", default=[])
     ap.add_argument("--image-digest", action="append", dest="image_digests", default=[])
     ap.add_argument("--sbom-dir", required=True)
-    ap.add_argument("--log-zip", required=True)
+    ap.add_argument("--log-zip", default=None)
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -64,11 +64,14 @@ def main():
             "digest": {"sha256": sha256file(path)}
         })
 
-    # Build logs
-    subjects.append({
-        "name": os.path.basename(args.log_zip),
-        "digest": {"sha256": sha256file(args.log_zip)}
-    })
+    # Build logs (optional — the GitHub API returns 404 while the run is in-progress)
+    if args.log_zip and os.path.exists(args.log_zip):
+        subjects.append({
+            "name": os.path.basename(args.log_zip),
+            "digest": {"sha256": sha256file(args.log_zip)}
+        })
+    elif args.log_zip:
+        print(f"Warning: --log-zip {args.log_zip} not found; omitting from subjects", file=sys.stderr)
 
     provenance = {
         "_type": "https://in-toto.io/Statement/v1",

@@ -146,6 +146,7 @@ jobs:
           name: sbom-arm64
           path: sbom/
       - name: Download build logs
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -188,9 +189,11 @@ jobs:
                  --repo "${{ github.repository }}" \
                  --title "v${VERSION}" \
                  --notes-file /tmp/release-notes.md
+          LOG_ZIP=/tmp/build-logs-${{ github.run_id }}.zip
+          EXTRA_ASSETS=$([ -f "${LOG_ZIP}" ] && echo "${LOG_ZIP}" || echo "")
           gh release upload "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --clobber \
             sbom/*.cdx.json \
             /tmp/provenance.json \
-            /tmp/build-logs-${{ github.run_id }}.zip
+            ${EXTRA_ASSETS}
