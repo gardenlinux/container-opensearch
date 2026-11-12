@@ -112,7 +112,7 @@ jobs:
             git checkout -b "${BRANCH}"
           fi
 
-          sed -i "s/VERSION:-[0-9][^}]*/VERSION:-${VERSION}/" \
+          sed -i "s/^\(VERSION="${VERSION:-\)[^}]*/\1${VERSION}/" \
             build-opensearch-fips.sh
 
           git add build-opensearch-fips.sh
