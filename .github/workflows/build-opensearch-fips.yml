@@ -150,8 +150,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          LOG_ZIP=/tmp/build-logs-${{ github.run_id }}.zip
           gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs \
-            > /tmp/build-logs-${{ github.run_id }}.zip
+            > "${LOG_ZIP}"
+          # gh api writes the 404 JSON error body to stdout on failure;
+          # validate the file is actually a zip and discard it if not.
+          if ! unzip -t "${LOG_ZIP}" > /dev/null 2>&1; then
+            echo "Downloaded file is not a valid zip (likely a 404 error response); discarding."
+            rm -f "${LOG_ZIP}"
+          fi
 
       - name: Generate SLSA provenance
         env:
