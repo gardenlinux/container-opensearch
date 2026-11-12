@@ -32,7 +32,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Install syft
         env:
-          SYFT_VERSION: '1.56.0'
+          SYFT_VERSION: '1.57.1'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ARCH_SYFT=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
@@ -71,7 +71,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Install syft
         env:
-          SYFT_VERSION: '1.56.0'
+          SYFT_VERSION: '1.57.1'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ARCH_SYFT=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
