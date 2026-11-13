@@ -1,0 +1,41 @@
+name: Attach build logs to release
+
+on:
+  workflow_run:
+    workflows: ["Build FIPS OpenSearch image"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  attach-logs:
+    runs-on: ubuntu-24.04
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          LOG_ZIP=/tmp/build-logs-${RUN_ID}.zip
+          gh api repos/${{ github.repository }}/actions/runs/${RUN_ID}/logs \
+            > "${LOG_ZIP}"
+          python3 -c \
+            "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).namelist()" \
+            "${LOG_ZIP}"
+
+      - name: Upload logs to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          VERSION=$(grep -m1 'VERSION:-' build-opensearch-fips.sh \
+            | grep -oP '(?<=VERSION:-)[^}]+')
+          gh release upload "v${VERSION}" \
+            --repo "${{ github.repository }}" \
+            --clobber \
+            /tmp/build-logs-${RUN_ID}.zip

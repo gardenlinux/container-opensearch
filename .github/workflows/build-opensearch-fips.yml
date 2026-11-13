@@ -145,24 +145,6 @@ jobs:
         with:
           name: sbom-arm64
           path: sbom/
-      - name: Download build logs
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LOG_ZIP=/tmp/build-logs-${{ github.run_id }}.zip
-          # gh api exits 1 on 404, writing the error JSON to stdout.
-          # Use || true so bash -e does not abort the step on failure.
-          gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs \
-            > "${LOG_ZIP}" || true
-          # Validate the file is actually a zip; discard the error JSON if not.
-          if ! python3 -c \
-              "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).namelist()" \
-              "${LOG_ZIP}" 2>/dev/null; then
-            echo "Downloaded file is not a valid zip (likely a 404 error response); discarding."
-            rm -f "${LOG_ZIP}"
-          fi
-
       - name: Generate SLSA provenance
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
@@ -175,7 +157,6 @@ jobs:
             --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-opensearch:${VERSION}" \
             --image-digest "${{ needs.push-manifest.outputs.image_digest }}" \
             --sbom-dir sbom/ \
-            --log-zip /tmp/build-logs-${{ github.run_id }}.zip \
             --output /tmp/provenance.json
 
       - name: Publish GitHub Release with SBOMs
@@ -199,11 +180,8 @@ jobs:
                  --repo "${{ github.repository }}" \
                  --title "v${VERSION}" \
                  --notes-file /tmp/release-notes.md
-          LOG_ZIP=/tmp/build-logs-${{ github.run_id }}.zip
-          EXTRA_ASSETS=$([ -f "${LOG_ZIP}" ] && echo "${LOG_ZIP}" || echo "")
           gh release upload "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --clobber \
             sbom/*.cdx.json \
-            /tmp/provenance.json \
-            ${EXTRA_ASSETS}
+            /tmp/provenance.json
