@@ -155,8 +155,7 @@ jobs:
             > "${LOG_ZIP}"
           # gh api writes the 404 JSON error body to stdout on failure;
           # validate the file is actually a zip and discard it if not.
-          sudo apt-get install -y -q unzip
-          if ! unzip -t "${LOG_ZIP}" > /dev/null 2>&1; then
+          if ! python3 -c "import zipfile,sys; zipfile.ZipFile('${LOG_ZIP}').namelist()" 2>/dev/null; then
             echo "Downloaded file is not a valid zip (likely a 404 error response); discarding."
             rm -f "${LOG_ZIP}"
           fi
