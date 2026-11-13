@@ -130,7 +130,7 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     needs: [build-amd64, build-arm64, push-manifest]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
