@@ -151,11 +151,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG_ZIP=/tmp/build-logs-${{ github.run_id }}.zip
+          # gh api exits 1 on 404, writing the error JSON to stdout.
+          # Use || true so bash -e does not abort the step on failure.
           gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs \
-            > "${LOG_ZIP}"
-          # gh api writes the 404 JSON error body to stdout on failure;
-          # validate the file is actually a zip and discard it if not.
-          if ! python3 -c "import zipfile,sys; zipfile.ZipFile('${LOG_ZIP}').namelist()" 2>/dev/null; then
+            > "${LOG_ZIP}" || true
+          # Validate the file is actually a zip; discard the error JSON if not.
+          if ! python3 -c \
+              "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).namelist()" \
+              "${LOG_ZIP}" 2>/dev/null; then
             echo "Downloaded file is not a valid zip (likely a 404 error response); discarding."
             rm -f "${LOG_ZIP}"
           fi
