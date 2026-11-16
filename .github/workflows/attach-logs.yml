@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
-          LOG_ZIP=/tmp/build-logs-${RUN_ID}.zip
+          LOG_ZIP=/tmp/build-logs.zip
           gh api repos/${{ github.repository }}/actions/runs/${RUN_ID}/logs \
             > "${LOG_ZIP}"
           python3 -c \
@@ -38,4 +38,4 @@ jobs:
           gh release upload "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --clobber \
-            /tmp/build-logs-${RUN_ID}.zip
+            /tmp/build-logs.zip
