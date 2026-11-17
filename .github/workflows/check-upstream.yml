@@ -88,6 +88,8 @@ jobs:
     permissions:
       packages: write
       contents: write
+      id-token: write
+      attestations: write
 
   open-pr:
     runs-on: ubuntu-24.04
