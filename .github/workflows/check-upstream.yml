@@ -18,10 +18,7 @@ on:
         required: false
         default: 'yes'
 
-permissions:
-  actions: write
-  contents: write
-  pull-requests: write
+permissions: {}
 
 
 env:
@@ -93,10 +90,14 @@ jobs:
 
   open-pr:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
     needs: [check, build]
     if: needs.check.outputs.new_version != ''
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Create release PR
         env:
