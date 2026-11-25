@@ -8,7 +8,7 @@ BASE_IMAGE="${BASE_IMAGE:-ghcr.io/gardenlinux/gardenlinux/fips:1877.22}"
 WORKDIR="${WORKDIR:-./.build/opensearch-fips-build}"
 IMAGE_NAME="${IMAGE_NAME:-gl-fips-opensearch}"
 ARCH="${ARCH:-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')}"
-VERSION="${VERSION:-3.10.0}"
+VERSION="${VERSION:-3.10.1}"
 UPSTREAM_GIT_SHA="${UPSTREAM_GIT_SHA:-4ee42a94e87f66fbf1e62a9871b1b87f91e02472}"
 BUILD_IMAGE="${BUILD_IMAGE:-eclipse-temurin:25-jdk-jammy}"
 
