@@ -88,52 +88,33 @@ jobs:
       id-token: write
       attestations: write
 
-  open-pr:
+  push-release-branch:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
     needs: [check, build]
     if: needs.check.outputs.new_version != ''
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - name: Create release PR
+      - name: Push release branch
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.check.outputs.new_version }}
         run: |
           BRANCH="release/v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # If branch already exists remotely, the version bump is already committed.
           if git ls-remote --exit-code origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
-            git fetch origin "${BRANCH}"
-            git checkout -b "${BRANCH}" "origin/${BRANCH}"
-          else
-            git checkout -b "${BRANCH}"
+            echo "Branch ${BRANCH} already exists; nothing to do."
+            exit 0
           fi
 
+          git checkout -b "${BRANCH}"
           sed -i 's|^VERSION="${VERSION:-[^}]*}"|VERSION="${VERSION:-'"${VERSION}"'}"|' \
             build-opensearch-fips.sh
-
           git add build-opensearch-fips.sh
           git diff --cached --quiet && echo "Nothing to commit" || \
             git commit -m "chore: bump default version to ${VERSION}"
-          git push --force-with-lease origin "${BRANCH}"
-
-          OPEN_PR=$(gh pr list --repo "${{ github.repository }}" \
-            --head "${BRANCH}" --state open --json number --jq '.[0].number')
-          if [ -z "${OPEN_PR}" ]; then
-            gh pr create \
-              --repo "${{ github.repository }}" \
-              --base main \
-              --head "${BRANCH}" \
-              --title "Release v${VERSION}" \
-              --body "Automated release PR for upstream version **${VERSION}**.
-
-          Merge this PR to record the new version as the repository default."
-          else
-            echo "Open PR #${OPEN_PR} for ${BRANCH} already exists; skipping gh pr create."
-          fi
+          git push origin "${BRANCH}"
